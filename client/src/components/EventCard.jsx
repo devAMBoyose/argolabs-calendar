@@ -1,19 +1,47 @@
 import React from "react";
 import { CalendarClock, MapPin, Users } from "lucide-react";
-import { format } from "date-fns";
 
 function safeDate(value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function formatManilaDate(value) {
+  const date = safeDate(value);
+
+  if (!date) return "";
+
+  return new Intl.DateTimeFormat("en-PH", {
+    timeZone: "Asia/Manila",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
+}
+
 export default function EventCard({ event, onClick }) {
   if (!event) return null;
 
-  const status = String(event.status ?? "PENDING").toLowerCase();
-  const priority = String(event.priority ?? "NORMAL").toLowerCase();
-  const start = safeDate(event.startAt ?? event.start ?? event.startDate);
-  const end = safeDate(event.endAt ?? event.end ?? event.endDate);
+  const status = String(
+    event.status ?? "PENDING"
+  ).toLowerCase();
+
+  const priority = String(
+    event.priority ?? "NORMAL"
+  ).toLowerCase();
+
+  const startValue =
+    event.startAt ?? event.start ?? event.startDate;
+
+  const endValue =
+    event.endAt ?? event.end ?? event.endDate;
+
+  const startLabel = formatManilaDate(startValue);
+  const endLabel = formatManilaDate(endValue);
+
   const guestCount = Array.isArray(event.attendees)
     ? event.attendees.length
     : Array.isArray(event.guests)
@@ -33,15 +61,18 @@ export default function EventCard({ event, onClick }) {
       </div>
 
       <h3>{event.title || "Untitled event"}</h3>
-      <p>{event.description || "No additional description."}</p>
+
+      <p>
+        {event.description || "No additional description."}
+      </p>
 
       <div className="event-meta">
         <span>
           <CalendarClock />
-          {start
-            ? `${format(start, "MMM d, yyyy • h:mm a")}${
-                end ? ` – ${format(end, "MMM d, yyyy • h:mm a")}` : ""
-              }`
+
+          {startLabel
+            ? `${startLabel}${endLabel ? ` – ${endLabel}` : ""
+            }`
             : "Date and time not available"}
         </span>
 
@@ -69,6 +100,8 @@ export default function EventCard({ event, onClick }) {
       {content}
     </button>
   ) : (
-    <article className="event-card event-card-static">{content}</article>
+    <article className="event-card event-card-static">
+      {content}
+    </article>
   );
 }
