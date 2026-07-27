@@ -39,7 +39,7 @@ await ensureInitialData();
 app.set("trust proxy", 1);
 
 /**
- * Security
+ * Security headers
  */
 app.use(
   helmet({
@@ -84,7 +84,7 @@ app.use(
 );
 
 /**
- * API rate limiter
+ * API rate limiting
  */
 app.use(
   "/api",
@@ -98,20 +98,18 @@ app.use(
 );
 
 /**
- * Render health check
+ * Health check
  */
 app.get("/api/health", (req, res) => {
   return res.status(200).json({
     ok: true,
     time: new Date().toISOString(),
     environment: process.env.NODE_ENV || "development",
-
     emailConfigured: Boolean(
       process.env.EMAIL_ENABLED === "true" &&
       process.env.RESEND_API_KEY &&
       process.env.RESEND_FROM
     ),
-
     googleCalendarEnabled:
       process.env.GOOGLE_CALENDAR_ENABLED === "true",
   });
@@ -133,8 +131,14 @@ app.use("/api/reminders", reminderRoutes);
  */
 if (process.env.NODE_ENV === "production") {
   const clientDistPath = path.resolve(
-    __dirname,
-    "../../client/dist"
+    process.cwd(),
+    "client",
+    "dist"
+  );
+
+  const clientAssetsPath = path.join(
+    clientDistPath,
+    "assets"
   );
 
   const clientIndexPath = path.join(
@@ -142,44 +146,50 @@ if (process.env.NODE_ENV === "production") {
     "index.html"
   );
 
+  console.log("Current working directory:", process.cwd());
   console.log("Serving React frontend from:", clientDistPath);
-  console.log("React index file:", clientIndexPath);
+  console.log("React index exists:", fs.existsSync(clientIndexPath));
+  console.log(
+    "Assets directory exists:",
+    fs.existsSync(clientAssetsPath)
+  );
 
-  if (!fs.existsSync(clientIndexPath)) {
-    console.error(
-      "React production build was not found:",
-      clientIndexPath
+  if (fs.existsSync(clientAssetsPath)) {
+    console.log(
+      "Frontend asset files:",
+      fs.readdirSync(clientAssetsPath)
     );
   }
 
   /**
-   * Serve all Vite-generated static assets.
+   * Serve Vite assets first.
+   */
+  app.use(
+    "/assets",
+    express.static(clientAssetsPath, {
+      index: false,
+      immutable: true,
+      maxAge: "1y",
+      fallthrough: false,
+    })
+  );
+
+  /**
+   * Serve other public frontend files.
    */
   app.use(
     express.static(clientDistPath, {
       index: false,
       setHeaders(res, filePath) {
         if (filePath.endsWith("index.html")) {
-          res.setHeader("Cache-Control", "no-store");
-        } else {
           res.setHeader(
             "Cache-Control",
-            "public, max-age=31536000, immutable"
+            "no-store, no-cache, must-revalidate"
           );
         }
       },
     })
   );
-
-  /**
-   * Missing assets must return plain 404.
-   */
-  app.get("/assets/{*assetPath}", (req, res) => {
-    return res
-      .status(404)
-      .type("text/plain")
-      .send("Frontend asset not found.");
-  });
 
   /**
    * React Router fallback.
@@ -189,14 +199,25 @@ if (process.env.NODE_ENV === "production") {
       return next();
     }
 
+    if (req.path.startsWith("/assets/")) {
+      return res
+        .status(404)
+        .type("text/plain")
+        .send(`Frontend asset not found: ${req.path}`);
+    }
+
     if (!fs.existsSync(clientIndexPath)) {
       return res.status(500).json({
         message: "React production build is missing.",
+        workingDirectory: process.cwd(),
         expectedPath: clientIndexPath,
       });
     }
 
-    res.setHeader("Cache-Control", "no-store");
+    res.setHeader(
+      "Cache-Control",
+      "no-store, no-cache, must-revalidate"
+    );
 
     return res.sendFile(clientIndexPath);
   });
