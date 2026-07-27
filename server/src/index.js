@@ -63,8 +63,8 @@ app.get('/api/health', (req, res) =>
     time: new Date().toISOString(),
     emailConfigured: Boolean(
       process.env.EMAIL_ENABLED === 'true' &&
-        process.env.RESEND_API_KEY &&
-        process.env.RESEND_FROM
+      process.env.RESEND_API_KEY &&
+      process.env.RESEND_FROM
     ),
     googleCalendarEnabled: process.env.GOOGLE_CALENDAR_ENABLED === 'true',
   })
@@ -80,7 +80,7 @@ app.use('/api/reminders', reminderRoutes);
 
 if (process.env.NODE_ENV === 'production') {
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  const dist = path.resolve(__dirname, '../../../client/dist');
+  const dist = path.resolve(__dirname, '../../client/dist');
   app.use(express.static(dist));
   app.get('/{*splat}', (req, res, next) => {
     if (req.path.startsWith('/api/')) return next();
