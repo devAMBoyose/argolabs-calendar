@@ -566,3 +566,7 @@ export default function EventEditor() {
         </>
     );
 }
+
+<p style={{ color: "#0a7a5c", fontWeight: 700 }}>
+    Manila timezone build 2026-07-27
+</p>
