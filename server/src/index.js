@@ -50,29 +50,53 @@ app.use(
 );
 
 /**
- * CORS
+ * CORS is applied only to API routes.
+ * Static React files must not be blocked by API CORS validation.
  */
-const allowedOrigins = (process.env.CLIENT_URL || "")
-  .split(",")
-  .map((value) => value.trim())
+function normalizeOrigin(value = "") {
+  return String(value).trim().replace(/\/+$/, "");
+}
+
+const allowedOrigins = [
+  ...(process.env.CLIENT_URL || "").split(","),
+  ...(process.env.APP_URL || "").split(","),
+]
+  .map(normalizeOrigin)
   .filter(Boolean);
 
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (!origin || process.env.NODE_ENV === "development") {
-        return callback(null, true);
-      }
+const apiCors = cors({
+  origin(origin, callback) {
+    // Allow requests without an Origin header, such as Render health checks.
+    if (!origin) {
+      return callback(null, true);
+    }
 
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
+    const normalizedOrigin = normalizeOrigin(origin);
 
-      return callback(new Error("Origin is not allowed by CORS."));
-    },
-    credentials: true,
-  })
-);
+    // Allow all origins during local development.
+    if (process.env.NODE_ENV === "development") {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(normalizedOrigin)) {
+      return callback(null, true);
+    }
+
+    console.warn("Blocked CORS origin:", normalizedOrigin);
+    console.warn("Allowed origins:", allowedOrigins);
+
+    return callback(
+      new Error(`Origin is not allowed by CORS: ${normalizedOrigin}`)
+    );
+  },
+
+  credentials: true,
+});
+
+/**
+ * Apply CORS only to the API.
+ */
+app.use("/api", apiCors);
 
 /**
  * Request parsing and logging
