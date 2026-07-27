@@ -3,7 +3,7 @@ services:
     name: argo-calendar-portal
     runtime: node
     plan: free
-    buildCommand: npm ci && npm run build && echo "=== CLIENT DIST ===" && find client/dist -maxdepth 3 -type f -print
+    buildCommand: npm ci && rm -rf client/dist && npm run build && find client/dist -maxdepth 3 -type f -print
     startCommand: npm start
     healthCheckPath: /api/health
     autoDeploy: true
