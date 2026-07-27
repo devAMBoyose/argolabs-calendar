@@ -1,0 +1,1 @@
+import {Router} from 'express';import Event from '../models/Event.js';const r=Router();r.get('/events',async(req,res)=>{const events=await Event.find({isPublic:true}).sort({startAt:1}).select('-createdBy -updatedBy').lean();res.json({events})});export default r;

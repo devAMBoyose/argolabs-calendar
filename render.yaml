@@ -1,0 +1,46 @@
+services:
+  - type: web
+    name: argo-calendar-portal
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: GOOGLE_CALENDAR_ENABLED
+        value: "false"
+      - key: EMAIL_ENABLED
+        value: "false"
+      - key: SEED_DEMO_DATA
+        value: "true"
+      - key: TIMEZONE
+        value: Asia/Manila
+      - key: JWT_EXPIRES_IN
+        value: 12h
+      - key: MONGODB_URI
+        sync: false
+      - key: CLIENT_URL
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: OWNER_NAME
+        value: Argo HR Administrator
+      - key: OWNER_EMAIL
+        sync: false
+      - key: OWNER_PASSWORD
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM
+        sync: false
+      - key: REMINDER_SECRET
+        generateValue: true
+      - key: FORM_WEBHOOK_SECRET
+        generateValue: true

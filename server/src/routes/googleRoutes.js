@@ -1,0 +1,1 @@
+import {Router} from 'express';import {requireAuth,allowRoles} from '../middleware/auth.js';import {status,authUrl,callback} from '../controllers/googleController.js';const r=Router();r.get('/callback',callback);r.use(requireAuth,allowRoles('OWNER'));r.get('/status',status);r.get('/auth-url',authUrl);export default r;

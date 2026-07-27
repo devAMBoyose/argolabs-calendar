@@ -1,0 +1,1 @@
+import mongoose from 'mongoose';const schema=new mongoose.Schema({provider:{type:String,unique:true,required:true},encryptedRefreshToken:{type:String,required:true},connectedEmail:{type:String},metadata:{type:mongoose.Schema.Types.Mixed}},{timestamps:true});export default mongoose.model('Integration',schema);
