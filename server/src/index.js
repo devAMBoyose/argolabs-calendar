@@ -131,9 +131,8 @@ app.use("/api/reminders", reminderRoutes);
  */
 if (process.env.NODE_ENV === "production") {
   const clientDistPath = path.resolve(
-    process.cwd(),
-    "client",
-    "dist"
+    __dirname,
+    "../../client/dist"
   );
 
   const clientAssetsPath = path.join(
@@ -161,9 +160,6 @@ if (process.env.NODE_ENV === "production") {
     );
   }
 
-  /**
-   * Serve Vite assets first.
-   */
   app.use(
     "/assets",
     express.static(clientAssetsPath, {
@@ -174,9 +170,6 @@ if (process.env.NODE_ENV === "production") {
     })
   );
 
-  /**
-   * Serve other public frontend files.
-   */
   app.use(
     express.static(clientDistPath, {
       index: false,
@@ -191,9 +184,6 @@ if (process.env.NODE_ENV === "production") {
     })
   );
 
-  /**
-   * React Router fallback.
-   */
   app.get("/{*splat}", (req, res, next) => {
     if (req.path.startsWith("/api/")) {
       return next();
@@ -209,7 +199,6 @@ if (process.env.NODE_ENV === "production") {
     if (!fs.existsSync(clientIndexPath)) {
       return res.status(500).json({
         message: "React production build is missing.",
-        workingDirectory: process.cwd(),
         expectedPath: clientIndexPath,
       });
     }
