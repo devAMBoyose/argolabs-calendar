@@ -4,8 +4,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import api from "../api";
 import { useAuth } from "../context/AuthContext";
 
-const PHILIPPINE_OFFSET = "+08:00";
-
 const initial = {
     title: "",
     description: "",
@@ -22,10 +20,16 @@ const initial = {
 };
 
 /**
- * Convert a stored UTC ISO date into the value required by
- * <input type="datetime-local"> using Asia/Manila time.
+ * Convert a UTC date returned by the API into a value suitable for
+ * <input type="datetime-local"> in the user's browser timezone.
+ *
+ * Example:
+ * 2026-07-27T12:23:00.000Z
+ * becomes:
+ * 2026-07-27T20:23
+ * when the browser is using Philippine time.
  */
-function toManilaInputValue(value) {
+function utcToLocalInput(value) {
     if (!value) return "";
 
     const date = new Date(value);
@@ -34,39 +38,29 @@ function toManilaInputValue(value) {
         return "";
     }
 
-    const parts = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Asia/Manila",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        hourCycle: "h23",
-    }).formatToParts(date);
+    const timezoneOffsetMs = date.getTimezoneOffset() * 60 * 1000;
 
-    const values = Object.fromEntries(
-        parts.map((part) => [part.type, part.value])
-    );
-
-    return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
+    return new Date(date.getTime() - timezoneOffsetMs)
+        .toISOString()
+        .slice(0, 16);
 }
 
 /**
- * Convert a Philippine datetime-local value into UTC ISO format.
+ * Convert a datetime-local value into a UTC ISO date before sending
+ * it to the Render server.
  *
- * Example:
- * 2026-07-27T19:57
+ * Example in a Philippine-time browser:
+ * 2026-07-27T20:23
  * becomes:
- * 2026-07-27T11:57:00.000Z
+ * 2026-07-27T12:23:00.000Z
  */
-function manilaInputToUtc(value) {
+function localInputToUtc(value) {
     if (!value) return "";
 
-    const normalized = value.length === 16 ? `${value}:00` : value;
-    const date = new Date(`${normalized}${PHILIPPINE_OFFSET}`);
+    const date = new Date(value);
 
     if (Number.isNaN(date.getTime())) {
-        throw new Error("Invalid Philippine date and time.");
+        throw new Error("Invalid date and time.");
     }
 
     return date.toISOString();
@@ -79,32 +73,60 @@ export default function EventEditor() {
 
     const [form, setForm] = useState(initial);
     const [saving, setSaving] = useState(false);
+    const [loading, setLoading] = useState(Boolean(id));
     const [error, setError] = useState("");
 
     useEffect(() => {
-        if (!id) return;
+        if (!id) {
+            setLoading(false);
+            return;
+        }
 
-        api
-            .get(`/events/${id}`)
-            .then(({ data }) => {
+        let cancelled = false;
+
+        async function loadEvent() {
+            try {
+                setLoading(true);
+                setError("");
+
+                const { data } = await api.get(`/events/${id}`);
                 const event = data.event;
 
+                if (cancelled) return;
+
                 setForm({
+                    ...initial,
                     ...event,
-                    attendees: (event.attendees || []).join(","),
-                    startAt: toManilaInputValue(event.startAt),
-                    endAt: toManilaInputValue(event.endAt),
+                    attendees: Array.isArray(event.attendees)
+                        ? event.attendees.join(",")
+                        : "",
+                    startAt: utcToLocalInput(event.startAt),
+                    endAt: utcToLocalInput(event.endAt),
+                    reminderMinutes: Number(event.reminderMinutes ?? 30),
+                    isPublic: Boolean(event.isPublic),
                 });
-            })
-            .catch((requestError) => {
+            } catch (requestError) {
+                if (cancelled) return;
+
                 setError(
                     requestError.response?.data?.message ||
                     "Unable to load the event."
                 );
-            });
+            } finally {
+                if (!cancelled) {
+                    setLoading(false);
+                }
+            }
+        }
+
+        loadEvent();
+
+        return () => {
+            cancelled = true;
+        };
     }, [id]);
 
-    function set(key, value) {
+    function setField(key, value) {
         setForm((current) => ({
             ...current,
             [key]: value,
@@ -118,17 +140,23 @@ export default function EventEditor() {
         setError("");
 
         try {
+            const startAt = localInputToUtc(form.startAt);
+            const endAt = localInputToUtc(form.endAt);
+
+            if (new Date(endAt) <= new Date(startAt)) {
+                throw new Error("End time must be after start time.");
+            }
+
             const payload = {
                 ...form,
-
-                // Explicitly tell the backend these values are Philippine time.
-                startAt: manilaInputToUtc(form.startAt),
-                endAt: manilaInputToUtc(form.endAt),
-
-                attendees: form.attendees
+                startAt,
+                endAt,
+                attendees: String(form.attendees || "")
                     .split(",")
                     .map((email) => email.trim())
                     .filter(Boolean),
+                reminderMinutes: Number(form.reminderMinutes),
+                isPublic: Boolean(form.isPublic),
             };
 
             if (id) {
@@ -157,6 +185,9 @@ export default function EventEditor() {
         if (!confirmed) return;
 
         try {
+            setSaving(true);
+            setError("");
+
             await api.delete(`/events/${id}`);
             navigate("/dashboard");
         } catch (requestError) {
@@ -164,7 +195,13 @@ export default function EventEditor() {
                 requestError.response?.data?.message ||
                 "Unable to delete the event."
             );
+        } finally {
+            setSaving(false);
         }
+    }
+
+    if (loading) {
+        return <div className="empty">Loading event…</div>;
     }
 
     return (
@@ -195,7 +232,9 @@ export default function EventEditor() {
                             required
                             disabled={!isOwner}
                             value={form.title}
-                            onChange={(event) => set("title", event.target.value)}
+                            onChange={(event) =>
+                                setField("title", event.target.value)
+                            }
                         />
                     </label>
 
@@ -205,7 +244,7 @@ export default function EventEditor() {
                             disabled={!isOwner}
                             value={form.department}
                             onChange={(event) =>
-                                set("department", event.target.value)
+                                setField("department", event.target.value)
                             }
                         >
                             {[
@@ -218,7 +257,9 @@ export default function EventEditor() {
                                 "IT and Systems",
                                 "General",
                             ].map((department) => (
-                                <option key={department}>{department}</option>
+                                <option key={department} value={department}>
+                                    {department}
+                                </option>
                             ))}
                         </select>
                     </label>
@@ -230,7 +271,9 @@ export default function EventEditor() {
                             required
                             disabled={!isOwner}
                             value={form.startAt}
-                            onChange={(event) => set("startAt", event.target.value)}
+                            onChange={(event) =>
+                                setField("startAt", event.target.value)
+                            }
                         />
                     </label>
 
@@ -241,7 +284,9 @@ export default function EventEditor() {
                             required
                             disabled={!isOwner}
                             value={form.endAt}
-                            onChange={(event) => set("endAt", event.target.value)}
+                            onChange={(event) =>
+                                setField("endAt", event.target.value)
+                            }
                         />
                     </label>
 
@@ -250,7 +295,9 @@ export default function EventEditor() {
                         <input
                             disabled={!isOwner}
                             value={form.location || ""}
-                            onChange={(event) => set("location", event.target.value)}
+                            onChange={(event) =>
+                                setField("location", event.target.value)
+                            }
                         />
                     </label>
 
@@ -260,11 +307,13 @@ export default function EventEditor() {
                             disabled={!isOwner}
                             value={form.priority}
                             onChange={(event) =>
-                                set("priority", event.target.value)
+                                setField("priority", event.target.value)
                             }
                         >
                             {["NORMAL", "HIGH", "URGENT"].map((priority) => (
-                                <option key={priority}>{priority}</option>
+                                <option key={priority} value={priority}>
+                                    {priority}
+                                </option>
                             ))}
                         </select>
                     </label>
@@ -275,7 +324,7 @@ export default function EventEditor() {
                             disabled={!isOwner}
                             value={form.attendees}
                             onChange={(event) =>
-                                set("attendees", event.target.value)
+                                setField("attendees", event.target.value)
                             }
                             placeholder="name@company.com, another@company.com"
                         />
@@ -287,7 +336,7 @@ export default function EventEditor() {
                             disabled={!isOwner}
                             value={form.description || ""}
                             onChange={(event) =>
-                                set("description", event.target.value)
+                                setField("description", event.target.value)
                             }
                         />
                     </label>
@@ -297,7 +346,9 @@ export default function EventEditor() {
                         <select
                             disabled={!canEdit}
                             value={form.status}
-                            onChange={(event) => set("status", event.target.value)}
+                            onChange={(event) =>
+                                setField("status", event.target.value)
+                            }
                         >
                             {[
                                 "PENDING",
@@ -306,7 +357,9 @@ export default function EventEditor() {
                                 "CANCELLED",
                                 "TERMINATED",
                             ].map((status) => (
-                                <option key={status}>{status}</option>
+                                <option key={status} value={status}>
+                                    {status}
+                                </option>
                             ))}
                         </select>
                     </label>
@@ -317,12 +370,17 @@ export default function EventEditor() {
                             disabled={!isOwner}
                             value={form.reminderMinutes}
                             onChange={(event) =>
-                                set("reminderMinutes", Number(event.target.value))
+                                setField(
+                                    "reminderMinutes",
+                                    Number(event.target.value)
+                                )
                             }
                         >
                             {[10, 15, 30, 60, 1440].map((minutes) => (
                                 <option key={minutes} value={minutes}>
-                                    {minutes === 1440 ? "1 day" : `${minutes} minutes`}
+                                    {minutes === 1440
+                                        ? "1 day"
+                                        : `${minutes} minutes`}
                                 </option>
                             ))}
                         </select>
@@ -334,7 +392,7 @@ export default function EventEditor() {
                             disabled={!canEdit}
                             value={form.remarks || ""}
                             onChange={(event) =>
-                                set("remarks", event.target.value)
+                                setField("remarks", event.target.value)
                             }
                             placeholder="Operational update, completion note, reason for cancellation…"
                         />
@@ -346,7 +404,7 @@ export default function EventEditor() {
                                 type="checkbox"
                                 checked={Boolean(form.isPublic)}
                                 onChange={(event) =>
-                                    set("isPublic", event.target.checked)
+                                    setField("isPublic", event.target.checked)
                                 }
                             />
                             Publish on public calendar
@@ -358,6 +416,7 @@ export default function EventEditor() {
                     <button
                         type="button"
                         className="ghost"
+                        disabled={saving}
                         onClick={() => navigate("/dashboard")}
                     >
                         Cancel
@@ -367,13 +426,18 @@ export default function EventEditor() {
                         <button
                             type="button"
                             className="danger"
+                            disabled={saving}
                             onClick={remove}
                         >
                             Delete
                         </button>
                     )}
 
-                    <button className="primary" disabled={saving}>
+                    <button
+                        type="submit"
+                        className="primary"
+                        disabled={saving}
+                    >
                         {saving ? "Saving…" : "Save event"}
                     </button>
                 </div>
