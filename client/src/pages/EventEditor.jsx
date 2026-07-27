@@ -4,6 +4,9 @@ import { useNavigate, useParams } from "react-router-dom";
 import api from "../api";
 import { useAuth } from "../context/AuthContext";
 
+const MANILA_TIME_ZONE = "Asia/Manila";
+const MANILA_UTC_OFFSET = "+08:00";
+
 const initial = {
     title: "",
     description: "",
@@ -20,16 +23,15 @@ const initial = {
 };
 
 /**
- * Convert a UTC date returned by the API into a value suitable for
- * <input type="datetime-local"> in the user's browser timezone.
+ * Converts a UTC/ISO timestamp returned by the API into the exact
+ * Asia/Manila value required by <input type="datetime-local">.
  *
  * Example:
- * 2026-07-27T12:23:00.000Z
+ * 2026-07-27T12:40:00.000Z
  * becomes:
- * 2026-07-27T20:23
- * when the browser is using Philippine time.
+ * 2026-07-27T20:40
  */
-function utcToLocalInput(value) {
+function utcToManilaInput(value) {
     if (!value) return "";
 
     const date = new Date(value);
@@ -38,29 +40,46 @@ function utcToLocalInput(value) {
         return "";
     }
 
-    const timezoneOffsetMs = date.getTimezoneOffset() * 60 * 1000;
+    const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: MANILA_TIME_ZONE,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+    }).formatToParts(date);
 
-    return new Date(date.getTime() - timezoneOffsetMs)
-        .toISOString()
-        .slice(0, 16);
+    const values = Object.fromEntries(
+        parts
+            .filter((part) => part.type !== "literal")
+            .map((part) => [part.type, part.value])
+    );
+
+    return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
 }
 
 /**
- * Convert a datetime-local value into a UTC ISO date before sending
- * it to the Render server.
+ * Treats a datetime-local value as Philippine time and converts it
+ * into a UTC ISO timestamp before sending it to the server.
  *
- * Example in a Philippine-time browser:
- * 2026-07-27T20:23
+ * Example:
+ * 2026-07-27T20:40
  * becomes:
- * 2026-07-27T12:23:00.000Z
+ * 2026-07-27T12:40:00.000Z
  */
-function localInputToUtc(value) {
+function manilaInputToUtc(value) {
     if (!value) return "";
 
-    const date = new Date(value);
+    const normalizedValue =
+        value.length === 16 ? `${value}:00` : value;
+
+    const date = new Date(
+        `${normalizedValue}${MANILA_UTC_OFFSET}`
+    );
 
     if (Number.isNaN(date.getTime())) {
-        throw new Error("Invalid date and time.");
+        throw new Error("Invalid Philippine date and time.");
     }
 
     return date.toISOString();
@@ -97,12 +116,18 @@ export default function EventEditor() {
                 setForm({
                     ...initial,
                     ...event,
+
                     attendees: Array.isArray(event.attendees)
                         ? event.attendees.join(",")
                         : "",
-                    startAt: utcToLocalInput(event.startAt),
-                    endAt: utcToLocalInput(event.endAt),
-                    reminderMinutes: Number(event.reminderMinutes ?? 30),
+
+                    startAt: utcToManilaInput(event.startAt),
+                    endAt: utcToManilaInput(event.endAt),
+
+                    reminderMinutes: Number(
+                        event.reminderMinutes ?? 30
+                    ),
+
                     isPublic: Boolean(event.isPublic),
                 });
             } catch (requestError) {
@@ -140,22 +165,36 @@ export default function EventEditor() {
         setError("");
 
         try {
-            const startAt = localInputToUtc(form.startAt);
-            const endAt = localInputToUtc(form.endAt);
+            const startAt = manilaInputToUtc(form.startAt);
+            const endAt = manilaInputToUtc(form.endAt);
+
+            if (!startAt || !endAt) {
+                throw new Error(
+                    "Start and end time are required."
+                );
+            }
 
             if (new Date(endAt) <= new Date(startAt)) {
-                throw new Error("End time must be after start time.");
+                throw new Error(
+                    "End time must be after start time."
+                );
             }
 
             const payload = {
                 ...form,
+
                 startAt,
                 endAt,
+
                 attendees: String(form.attendees || "")
                     .split(",")
                     .map((email) => email.trim())
                     .filter(Boolean),
-                reminderMinutes: Number(form.reminderMinutes),
+
+                reminderMinutes: Number(
+                    form.reminderMinutes
+                ),
+
                 isPublic: Boolean(form.isPublic),
             };
 
@@ -201,7 +240,11 @@ export default function EventEditor() {
     }
 
     if (loading) {
-        return <div className="empty">Loading event…</div>;
+        return (
+            <div className="empty">
+                Loading event…
+            </div>
+        );
     }
 
     return (
@@ -212,7 +255,9 @@ export default function EventEditor() {
                         {id ? "EVENT RECORD" : "NEW EVENT"}
                     </span>
 
-                    <h1>{id ? "Update event" : "Create event"}</h1>
+                    <h1>
+                        {id ? "Update event" : "Create event"}
+                    </h1>
 
                     <p>
                         {isOwner
@@ -222,29 +267,44 @@ export default function EventEditor() {
                 </div>
             </div>
 
-            <form className="form-card" onSubmit={save}>
-                {error && <div className="alert error">{error}</div>}
+            <form
+                className="form-card"
+                onSubmit={save}
+            >
+                {error && (
+                    <div className="alert error">
+                        {error}
+                    </div>
+                )}
 
                 <div className="form-grid">
                     <label>
                         Event title
+
                         <input
                             required
                             disabled={!isOwner}
                             value={form.title}
                             onChange={(event) =>
-                                setField("title", event.target.value)
+                                setField(
+                                    "title",
+                                    event.target.value
+                                )
                             }
                         />
                     </label>
 
                     <label>
                         Department
+
                         <select
                             disabled={!isOwner}
                             value={form.department}
                             onChange={(event) =>
-                                setField("department", event.target.value)
+                                setField(
+                                    "department",
+                                    event.target.value
+                                )
                             }
                         >
                             {[
@@ -257,7 +317,10 @@ export default function EventEditor() {
                                 "IT and Systems",
                                 "General",
                             ].map((department) => (
-                                <option key={department} value={department}>
+                                <option
+                                    key={department}
+                                    value={department}
+                                >
                                     {department}
                                 </option>
                             ))}
@@ -266,52 +329,75 @@ export default function EventEditor() {
 
                     <label>
                         Start
+
                         <input
                             type="datetime-local"
                             required
                             disabled={!isOwner}
                             value={form.startAt}
                             onChange={(event) =>
-                                setField("startAt", event.target.value)
+                                setField(
+                                    "startAt",
+                                    event.target.value
+                                )
                             }
                         />
                     </label>
 
                     <label>
                         End
+
                         <input
                             type="datetime-local"
                             required
                             disabled={!isOwner}
                             value={form.endAt}
                             onChange={(event) =>
-                                setField("endAt", event.target.value)
+                                setField(
+                                    "endAt",
+                                    event.target.value
+                                )
                             }
                         />
                     </label>
 
                     <label>
                         Location
+
                         <input
                             disabled={!isOwner}
                             value={form.location || ""}
                             onChange={(event) =>
-                                setField("location", event.target.value)
+                                setField(
+                                    "location",
+                                    event.target.value
+                                )
                             }
                         />
                     </label>
 
                     <label>
                         Priority
+
                         <select
                             disabled={!isOwner}
                             value={form.priority}
                             onChange={(event) =>
-                                setField("priority", event.target.value)
+                                setField(
+                                    "priority",
+                                    event.target.value
+                                )
                             }
                         >
-                            {["NORMAL", "HIGH", "URGENT"].map((priority) => (
-                                <option key={priority} value={priority}>
+                            {[
+                                "NORMAL",
+                                "HIGH",
+                                "URGENT",
+                            ].map((priority) => (
+                                <option
+                                    key={priority}
+                                    value={priority}
+                                >
                                     {priority}
                                 </option>
                             ))}
@@ -320,11 +406,15 @@ export default function EventEditor() {
 
                     <label className="full">
                         Guest emails
+
                         <textarea
                             disabled={!isOwner}
                             value={form.attendees}
                             onChange={(event) =>
-                                setField("attendees", event.target.value)
+                                setField(
+                                    "attendees",
+                                    event.target.value
+                                )
                             }
                             placeholder="name@company.com, another@company.com"
                         />
@@ -332,22 +422,30 @@ export default function EventEditor() {
 
                     <label className="full">
                         Description
+
                         <textarea
                             disabled={!isOwner}
                             value={form.description || ""}
                             onChange={(event) =>
-                                setField("description", event.target.value)
+                                setField(
+                                    "description",
+                                    event.target.value
+                                )
                             }
                         />
                     </label>
 
                     <label>
                         Status
+
                         <select
                             disabled={!canEdit}
                             value={form.status}
                             onChange={(event) =>
-                                setField("status", event.target.value)
+                                setField(
+                                    "status",
+                                    event.target.value
+                                )
                             }
                         >
                             {[
@@ -357,7 +455,10 @@ export default function EventEditor() {
                                 "CANCELLED",
                                 "TERMINATED",
                             ].map((status) => (
-                                <option key={status} value={status}>
+                                <option
+                                    key={status}
+                                    value={status}
+                                >
                                     {status}
                                 </option>
                             ))}
@@ -366,6 +467,7 @@ export default function EventEditor() {
 
                     <label>
                         Reminder
+
                         <select
                             disabled={!isOwner}
                             value={form.reminderMinutes}
@@ -376,23 +478,32 @@ export default function EventEditor() {
                                 )
                             }
                         >
-                            {[10, 15, 30, 60, 1440].map((minutes) => (
-                                <option key={minutes} value={minutes}>
-                                    {minutes === 1440
-                                        ? "1 day"
-                                        : `${minutes} minutes`}
-                                </option>
-                            ))}
+                            {[10, 15, 30, 60, 1440].map(
+                                (minutes) => (
+                                    <option
+                                        key={minutes}
+                                        value={minutes}
+                                    >
+                                        {minutes === 1440
+                                            ? "1 day"
+                                            : `${minutes} minutes`}
+                                    </option>
+                                )
+                            )}
                         </select>
                     </label>
 
                     <label className="full">
                         Remarks
+
                         <textarea
                             disabled={!canEdit}
                             value={form.remarks || ""}
                             onChange={(event) =>
-                                setField("remarks", event.target.value)
+                                setField(
+                                    "remarks",
+                                    event.target.value
+                                )
                             }
                             placeholder="Operational update, completion note, reason for cancellation…"
                         />
@@ -402,11 +513,17 @@ export default function EventEditor() {
                         <label className="checkbox">
                             <input
                                 type="checkbox"
-                                checked={Boolean(form.isPublic)}
+                                checked={Boolean(
+                                    form.isPublic
+                                )}
                                 onChange={(event) =>
-                                    setField("isPublic", event.target.checked)
+                                    setField(
+                                        "isPublic",
+                                        event.target.checked
+                                    )
                                 }
                             />
+
                             Publish on public calendar
                         </label>
                     )}
@@ -417,7 +534,9 @@ export default function EventEditor() {
                         type="button"
                         className="ghost"
                         disabled={saving}
-                        onClick={() => navigate("/dashboard")}
+                        onClick={() =>
+                            navigate("/dashboard")
+                        }
                     >
                         Cancel
                     </button>
@@ -438,7 +557,9 @@ export default function EventEditor() {
                         className="primary"
                         disabled={saving}
                     >
-                        {saving ? "Saving…" : "Save event"}
+                        {saving
+                            ? "Saving…"
+                            : "Save event"}
                     </button>
                 </div>
             </form>
