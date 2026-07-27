@@ -28,18 +28,18 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /**
- * Database and initial application data
+ * Database and initial data
  */
 await connectDB();
 await ensureInitialData();
 
 /**
- * Render runs behind a reverse proxy.
+ * Render reverse proxy
  */
 app.set("trust proxy", 1);
 
 /**
- * Security headers
+ * Security
  */
 app.use(
   helmet({
@@ -51,8 +51,6 @@ app.use(
 
 /**
  * CORS
- *
- * CLIENT_URL may contain one or more comma-separated URLs.
  */
 const allowedOrigins = (process.env.CLIENT_URL || "")
   .split(",")
@@ -62,7 +60,6 @@ const allowedOrigins = (process.env.CLIENT_URL || "")
 app.use(
   cors({
     origin(origin, callback) {
-      // Allow server-to-server requests, health checks, and local development.
       if (!origin || process.env.NODE_ENV === "development") {
         return callback(null, true);
       }
@@ -81,12 +78,13 @@ app.use(
  * Request parsing and logging
  */
 app.use(express.json({ limit: "1mb" }));
+
 app.use(
   morgan(process.env.NODE_ENV === "production" ? "combined" : "dev")
 );
 
 /**
- * API rate limiting
+ * API rate limiter
  */
 app.use(
   "/api",
@@ -95,14 +93,12 @@ app.use(
     limit: 500,
     standardHeaders: true,
     legacyHeaders: false,
-
-    // The external scheduler may call this endpoint regularly.
     skip: (req) => req.path === "/reminders/run",
   })
 );
 
 /**
- * Health check used by Render
+ * Render health check
  */
 app.get("/api/health", (req, res) => {
   return res.status(200).json({
@@ -134,15 +130,6 @@ app.use("/api/reminders", reminderRoutes);
 
 /**
  * Production React frontend
- *
- * index.js:
- *   server/src/index.js
- *
- * React build:
- *   client/dist
- *
- * From server/src, the correct relative path is:
- *   ../../client/dist
  */
 if (process.env.NODE_ENV === "production") {
   const clientDistPath = path.resolve(
@@ -150,63 +137,56 @@ if (process.env.NODE_ENV === "production") {
     "../../client/dist"
   );
 
-  const clientAssetsPath = path.join(
-    clientDistPath,
-    "assets"
-  );
-
   const clientIndexPath = path.join(
     clientDistPath,
     "index.html"
   );
 
-  console.log("Production frontend directory:", clientDistPath);
-  console.log("Production index file:", clientIndexPath);
+  console.log("Serving React frontend from:", clientDistPath);
+  console.log("React index file:", clientIndexPath);
 
   if (!fs.existsSync(clientIndexPath)) {
     console.error(
-      `React production build was not found at: ${clientIndexPath}`
+      "React production build was not found:",
+      clientIndexPath
     );
   }
 
   /**
-   * Serve Vite's generated JS and CSS files.
-   *
-   * A missing asset must return 404 instead of falling through
-   * to index.html or the JSON API error handler.
-   */
-  app.use(
-    "/assets",
-    express.static(clientAssetsPath, {
-      immutable: true,
-      maxAge: "1y",
-      fallthrough: false,
-    })
-  );
-
-  /**
-   * Serve other static files such as favicon and manifest.
+   * Serve all Vite-generated static assets.
    */
   app.use(
     express.static(clientDistPath, {
       index: false,
-      maxAge: "1h",
+      setHeaders(res, filePath) {
+        if (filePath.endsWith("index.html")) {
+          res.setHeader("Cache-Control", "no-store");
+        } else {
+          res.setHeader(
+            "Cache-Control",
+            "public, max-age=31536000, immutable"
+          );
+        }
+      },
     })
   );
 
   /**
-   * React Router SPA fallback.
-   *
-   * This must remain after every /api route and every static route.
+   * Missing assets must return plain 404.
+   */
+  app.get("/assets/{*assetPath}", (req, res) => {
+    return res
+      .status(404)
+      .type("text/plain")
+      .send("Frontend asset not found.");
+  });
+
+  /**
+   * React Router fallback.
    */
   app.get("/{*splat}", (req, res, next) => {
     if (req.path.startsWith("/api/")) {
       return next();
-    }
-
-    // Never return index.html for a missing asset.
-    if (req.path.startsWith("/assets/")) {
-      return res.status(404).send("Frontend asset not found.");
     }
 
     if (!fs.existsSync(clientIndexPath)) {
@@ -215,6 +195,8 @@ if (process.env.NODE_ENV === "production") {
         expectedPath: clientIndexPath,
       });
     }
+
+    res.setHeader("Cache-Control", "no-store");
 
     return res.sendFile(clientIndexPath);
   });
@@ -227,7 +209,7 @@ app.use(notFound);
 app.use(errorHandler);
 
 /**
- * Render supplies PORT automatically.
+ * Start server
  */
 const port = Number(process.env.PORT) || 5000;
 
