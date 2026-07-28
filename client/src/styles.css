@@ -56,3 +56,473 @@
 .event-card-static:hover{transform:none}
 @media(max-width:900px){.calendar-toolbar{grid-template-columns:1fr}.calendar-title{text-align:left}.year-calendar{grid-template-columns:repeat(2,minmax(0,1fr))}.month-calendar{overflow-x:auto}}
 @media(max-width:620px){.calendar-panel{padding:13px}.calendar-filters{grid-template-columns:1fr}.calendar-view-switcher{width:100%}.calendar-view-switcher button{flex:1;justify-content:center}.year-calendar{grid-template-columns:1fr}.day-event-row{grid-template-columns:80px 4px 1fr}.day-event-row .status{grid-column:3;justify-self:start}}
+
+
+
+
+/* =========================================================
+   RESPONSIVE PUBLIC CALENDAR
+   Desktop, tablet, mobile, and embedded mobile browsers
+   ========================================================= */
+
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  overflow-x: hidden;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+.public-page {
+  width: min(100%, 1280px);
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.public-header,
+.hero,
+.calendar-panel,
+.selected-event-section {
+  width: 100%;
+  min-width: 0;
+}
+
+.calendar-panel {
+  overflow: hidden;
+}
+
+/* Toolbar */
+.calendar-toolbar {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
+.calendar-title {
+  min-width: 0;
+  margin: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.calendar-view-switcher,
+.calendar-navigation {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.calendar-view-switcher button,
+.calendar-navigation button {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+/* Filters */
+.calendar-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 190px;
+  gap: 12px;
+  width: 100%;
+}
+
+.calendar-filters input,
+.calendar-filters select {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Month calendar */
+.month-calendar {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.month-weekdays,
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  width: 100%;
+}
+
+.month-weekdays > div {
+  min-width: 0;
+  padding: 10px 4px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 800;
+  overflow: hidden;
+}
+
+.month-cell {
+  position: relative;
+  min-width: 0;
+  min-height: 130px;
+  padding: 8px;
+  overflow: hidden;
+}
+
+.month-day-number {
+  max-width: 100%;
+}
+
+.month-event-list {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  min-width: 0;
+  margin-top: 8px;
+}
+
+.calendar-event-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  padding: 7px 8px;
+  overflow: hidden;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.calendar-event-pill span {
+  flex: 0 0 auto;
+}
+
+.calendar-event-pill {
+  text-overflow: ellipsis;
+}
+
+.month-more {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Day view */
+.day-calendar {
+  width: 100%;
+  min-width: 0;
+}
+
+.day-event-row {
+  display: grid;
+  grid-template-columns: 110px 5px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+}
+
+.day-event-content {
+  min-width: 0;
+}
+
+.day-event-content h3,
+.day-event-content p {
+  overflow-wrap: anywhere;
+}
+
+/* Year view */
+.year-calendar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  width: 100%;
+}
+
+.year-month-card {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.year-month-events span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Event details */
+.selected-event-section,
+.event-card,
+.event-card-static {
+  min-width: 0;
+}
+
+.event-meta span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* =========================================================
+   TABLET
+   ========================================================= */
+
+@media (max-width: 900px) {
+  .public-page {
+    padding: 18px;
+  }
+
+  .calendar-toolbar {
+    grid-template-columns: 1fr auto;
+  }
+
+  .calendar-title {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    text-align: left;
+  }
+
+  .calendar-view-switcher {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .calendar-navigation {
+    grid-column: 2;
+    grid-row: 2;
+    justify-content: flex-end;
+  }
+
+  .year-calendar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .month-cell {
+    min-height: 110px;
+    padding: 6px;
+  }
+
+  .calendar-event-pill {
+    padding: 6px;
+    font-size: 12px;
+  }
+}
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 620px) {
+  .public-page {
+    width: 100%;
+    padding: 10px;
+  }
+
+  .public-header {
+    gap: 10px;
+  }
+
+  .public-header .brand span {
+    display: none;
+  }
+
+  .public-header .ghost {
+    padding: 9px 11px;
+    font-size: 13px;
+  }
+
+  .hero {
+    padding: 28px 20px;
+    border-radius: 18px;
+  }
+
+  .hero h1 {
+    font-size: clamp(26px, 8vw, 38px);
+    line-height: 1.08;
+  }
+
+  .calendar-panel {
+    padding: 10px;
+    border-radius: 16px;
+  }
+
+  .calendar-toolbar {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .calendar-title {
+    order: 1;
+    width: 100%;
+    text-align: center;
+    font-size: 22px;
+  }
+
+  .calendar-view-switcher {
+    order: 2;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .calendar-view-switcher button {
+    justify-content: center;
+    width: 100%;
+    padding: 9px 6px;
+    font-size: 13px;
+  }
+
+  .calendar-navigation {
+    order: 3;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .calendar-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .month-weekdays > div {
+    padding: 8px 1px;
+    font-size: 10px;
+  }
+
+  .month-cell {
+    min-height: 88px;
+    padding: 4px;
+  }
+
+  .month-day-number {
+    padding: 2px;
+    font-size: 13px;
+  }
+
+  .month-event-list {
+    gap: 3px;
+    margin-top: 4px;
+  }
+
+  .calendar-event-pill {
+    display: block;
+    padding: 5px 4px;
+    border-left-width: 3px;
+    border-radius: 6px;
+    font-size: 10px;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .calendar-event-pill > span {
+    display: none;
+  }
+
+  .month-more {
+    padding: 2px;
+    font-size: 10px;
+  }
+
+  .day-event-row {
+    grid-template-columns: 76px 4px minmax(0, 1fr);
+    gap: 8px;
+    padding: 12px 8px;
+  }
+
+  .day-event-row > .status {
+    grid-column: 3;
+    justify-self: start;
+  }
+
+  .day-event-time {
+    font-size: 12px;
+  }
+
+  .day-event-content h3 {
+    font-size: 15px;
+  }
+
+  .day-event-content p {
+    font-size: 12px;
+  }
+
+  .year-calendar {
+    grid-template-columns: 1fr;
+  }
+
+  .selected-event-section {
+    margin-top: 24px;
+  }
+
+  .event-card {
+    padding: 16px;
+  }
+
+  .event-meta span {
+    align-items: flex-start;
+    font-size: 13px;
+  }
+}
+
+/* =========================================================
+   VERY SMALL PHONES
+   ========================================================= */
+
+@media (max-width: 400px) {
+  .public-page {
+    padding: 6px;
+  }
+
+  .calendar-panel {
+    padding: 6px;
+  }
+
+  .month-cell {
+    min-height: 76px;
+    padding: 3px;
+  }
+
+  .month-weekdays > div {
+    font-size: 9px;
+  }
+
+  .calendar-event-pill {
+    padding: 4px 3px;
+    font-size: 9px;
+  }
+
+  .calendar-view-switcher button {
+    gap: 3px;
+    font-size: 12px;
+  }
+
+  .calendar-view-switcher svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+/* =========================================================
+   LANDSCAPE MOBILE
+   ========================================================= */
+
+@media (max-width: 900px) and (orientation: landscape) {
+  .month-cell {
+    min-height: 85px;
+  }
+
+  .hero {
+    padding-top: 24px;
+    padding-bottom: 24px;
+  }
+}
