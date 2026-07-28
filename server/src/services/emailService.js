@@ -1,3 +1,5 @@
+import { PHILIPPINE_TIME_ZONE } from '../utils/philippineTime.js';
+
 const RESEND_API_URL = 'https://api.resend.com/emails';
 
 function escapeHtml(value = '') {
@@ -26,7 +28,7 @@ function formatDate(value) {
   return new Intl.DateTimeFormat('en-US', {
     dateStyle: 'full',
     timeStyle: 'short',
-    timeZone: process.env.TIMEZONE || 'Asia/Manila',
+    timeZone: PHILIPPINE_TIME_ZONE,
   }).format(date);
 }
 

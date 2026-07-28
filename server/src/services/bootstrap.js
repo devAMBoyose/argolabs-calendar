@@ -1,12 +1,6 @@
 import User from '../models/User.js';
 import Event from '../models/Event.js';
-
-function addDays(base, days, hour = 9) {
-  const value = new Date(base);
-  value.setDate(value.getDate() + days);
-  value.setHours(hour, 0, 0, 0);
-  return value;
-}
+import { addPhilippineDaysAtTime } from '../utils/philippineTime.js';
 
 export async function ensureInitialData({ resetOwnerPassword = false } = {}) {
   const ownerEmail = String(process.env.OWNER_EMAIL || '').trim().toLowerCase();
@@ -58,8 +52,8 @@ export async function ensureInitialData({ resetOwnerPassword = false } = {}) {
       description: 'New employee orientation and policy walkthrough.',
       department: 'HR',
       location: 'Conference Room A',
-      startAt: addDays(now, 1, 9),
-      endAt: addDays(now, 1, 11),
+      startAt: addPhilippineDaysAtTime(now, 1, 9),
+      endAt: addPhilippineDaysAtTime(now, 1, 11),
       attendees: [],
       priority: 'NORMAL',
       status: 'PENDING',
@@ -72,8 +66,8 @@ export async function ensureInitialData({ resetOwnerPassword = false } = {}) {
       description: 'Weekly operational planning and blockers review.',
       department: 'OPERATIONS',
       location: 'Main Meeting Room',
-      startAt: addDays(now, 2, 13),
-      endAt: addDays(now, 2, 15),
+      startAt: addPhilippineDaysAtTime(now, 2, 13),
+      endAt: addPhilippineDaysAtTime(now, 2, 15),
       attendees: [],
       priority: 'HIGH',
       status: 'ONGOING',
@@ -86,8 +80,8 @@ export async function ensureInitialData({ resetOwnerPassword = false } = {}) {
       description: 'Internal compliance checklist review.',
       department: 'ADMIN',
       location: 'Online',
-      startAt: addDays(now, -4, 10),
-      endAt: addDays(now, -4, 12),
+      startAt: addPhilippineDaysAtTime(now, -4, 10),
+      endAt: addPhilippineDaysAtTime(now, -4, 12),
       attendees: [],
       priority: 'URGENT',
       status: 'COMPLETED',
@@ -100,8 +94,8 @@ export async function ensureInitialData({ resetOwnerPassword = false } = {}) {
       description: 'Cancelled demo event for dashboard testing.',
       department: 'FINANCE',
       location: 'Davao Office',
-      startAt: addDays(now, 5, 14),
-      endAt: addDays(now, 5, 15),
+      startAt: addPhilippineDaysAtTime(now, 5, 14),
+      endAt: addPhilippineDaysAtTime(now, 5, 15),
       attendees: [],
       priority: 'NORMAL',
       status: 'CANCELLED',

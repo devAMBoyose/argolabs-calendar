@@ -11,6 +11,7 @@ import {
   sendEventCreatedEmail,
   sendEventUpdatedEmail,
 } from '../services/emailService.js';
+import { parsePhilippineDateTime } from '../utils/philippineTime.js';
 
 const ownerFields = [
   'title',
@@ -27,6 +28,25 @@ const ownerFields = [
   'reminderMinutes',
 ];
 const editorFields = ['status', 'remarks'];
+
+function normalizeEventDateFields(data) {
+  const normalized = { ...data };
+
+  for (const field of ['startAt', 'endAt']) {
+    if (normalized[field] === undefined) continue;
+
+    const parsed = parsePhilippineDateTime(normalized[field]);
+    if (!parsed) {
+      return {
+        error: `${field === 'startAt' ? 'Start' : 'End'} date and time is invalid.`,
+      };
+    }
+
+    normalized[field] = parsed;
+  }
+
+  return { data: normalized };
+}
 
 function pick(body, fields) {
   return Object.fromEntries(
@@ -78,12 +98,19 @@ export async function one(req, res) {
 }
 
 export async function create(req, res) {
-  const data = pick(req.body, ownerFields);
+  const picked = pick(req.body, ownerFields);
 
-  if (!data.startAt || !data.endAt) {
+  if (!picked.startAt || !picked.endAt) {
     return res.status(400).json({ message: 'Start and end time are required.' });
   }
-  if (new Date(data.endAt) <= new Date(data.startAt)) {
+
+  const normalized = normalizeEventDateFields(picked);
+  if (normalized.error) {
+    return res.status(400).json({ message: normalized.error });
+  }
+
+  const data = normalized.data;
+  if (data.endAt <= data.startAt) {
     return res.status(400).json({ message: 'End time must be after start time.' });
   }
 
@@ -128,11 +155,17 @@ export async function update(req, res) {
   const previousReminderMinutes = event.reminderMinutes;
   const previousAttendees = JSON.stringify(event.attendees || []);
 
-  const changes = pick(
+  const pickedChanges = pick(
     req.body,
     req.user.role === 'OWNER' ? ownerFields : editorFields
   );
+  const normalized = normalizeEventDateFields(pickedChanges);
 
+  if (normalized.error) {
+    return res.status(400).json({ message: normalized.error });
+  }
+
+  const changes = normalized.data;
   Object.assign(event, changes, { updatedBy: req.user._id });
 
   if (event.endAt <= event.startAt) {

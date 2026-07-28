@@ -9,6 +9,12 @@ import {
 } from "lucide-react";
 import api from "../api";
 import EventCard from "../components/EventCard";
+import {
+  formatPhilippineTime,
+  getPhilippineDateParts,
+  safeDate,
+  toPhilippineDateKey,
+} from "../utils/philippineTime";
 
 const STATUS_OPTIONS = [
   "ALL",
@@ -27,9 +33,20 @@ const STATUS_COLORS = {
   TERMINATED: "#6c757d",
 };
 
-function safeDate(value) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
+function calendarDate(year, monthIndex, day) {
+  return new Date(Date.UTC(year, monthIndex, day, 12, 0, 0, 0));
+}
+
+function calendarDateKey(date) {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function philippineToday() {
+  const parts = getPhilippineDateParts(new Date());
+  return calendarDate(parts.year, parts.month - 1, parts.day);
 }
 
 function getStart(event) {
@@ -40,60 +57,46 @@ function getEnd(event) {
   return safeDate(event?.endAt ?? event?.end ?? event?.endDate);
 }
 
-function startOfDay(date) {
-  const value = new Date(date);
-  value.setHours(0, 0, 0, 0);
-  return value;
-}
-
-function endOfDay(date) {
-  const value = new Date(date);
-  value.setHours(23, 59, 59, 999);
-  return value;
-}
-
 function sameDay(a, b) {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
+  return calendarDateKey(a) === calendarDateKey(b);
 }
 
 function monthCells(date) {
-  const year = date.getFullYear();
-  const month = date.getMonth();
-  const firstDay = new Date(year, month, 1);
-  const firstCell = new Date(year, month, 1 - firstDay.getDay());
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth();
+  const firstDay = calendarDate(year, month, 1);
+  const firstCell = calendarDate(year, month, 1 - firstDay.getUTCDay());
 
-  return Array.from({ length: 42 }, (_, index) => {
-    const current = new Date(firstCell);
-    current.setDate(firstCell.getDate() + index);
-    return current;
-  });
+  return Array.from({ length: 42 }, (_, index) =>
+    calendarDate(
+      firstCell.getUTCFullYear(),
+      firstCell.getUTCMonth(),
+      firstCell.getUTCDate() + index
+    )
+  );
 }
 
-function formatMonth(date) {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "long",
-    year: "numeric",
+function formatCalendarDate(date, options) {
+  return new Intl.DateTimeFormat("en-PH", {
+    timeZone: "UTC",
+    ...options,
   }).format(date);
 }
 
+function formatMonth(date) {
+  return formatCalendarDate(date, {
+    month: "long",
+    year: "numeric",
+  });
+}
+
 function formatDay(date) {
-  return new Intl.DateTimeFormat("en-US", {
+  return formatCalendarDate(date, {
     weekday: "long",
     month: "long",
     day: "numeric",
     year: "numeric",
-  }).format(date);
-}
-
-function formatTime(date) {
-  return new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(date);
+  });
 }
 
 export default function PublicCalendar() {
@@ -101,7 +104,7 @@ export default function PublicCalendar() {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("ALL");
   const [view, setView] = useState("month");
-  const [cursorDate, setCursorDate] = useState(new Date());
+  const [cursorDate, setCursorDate] = useState(() => philippineToday());
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -178,23 +181,26 @@ export default function PublicCalendar() {
   const calendarDays = useMemo(() => monthCells(cursorDate), [cursorDate]);
 
   function eventsForDay(day) {
+    const dayKey = calendarDateKey(day);
+
     return filteredEvents.filter((event) => {
       const start = getStart(event);
       const end = getEnd(event) ?? start;
       if (!start) return false;
 
-      return start <= endOfDay(day) && end >= startOfDay(day);
+      const startKey = toPhilippineDateKey(start);
+      const endKey = toPhilippineDateKey(end);
+      return startKey <= dayKey && endKey >= dayKey;
     });
   }
 
   function eventsForMonth(monthIndex) {
+    const year = cursorDate.getUTCFullYear();
+    const prefix = `${year}-${String(monthIndex + 1).padStart(2, "0")}-`;
+
     return filteredEvents.filter((event) => {
       const start = getStart(event);
-      return (
-        start &&
-        start.getFullYear() === cursorDate.getFullYear() &&
-        start.getMonth() === monthIndex
-      );
+      return start && toPhilippineDateKey(start).startsWith(prefix);
     });
   }
 
@@ -208,16 +214,16 @@ export default function PublicCalendar() {
     setCursorDate((current) => {
       const next = new Date(current);
 
-      if (view === "day") next.setDate(next.getDate() + direction);
-      if (view === "month") next.setMonth(next.getMonth() + direction);
-      if (view === "year") next.setFullYear(next.getFullYear() + direction);
+      if (view === "day") next.setUTCDate(next.getUTCDate() + direction);
+      if (view === "month") next.setUTCMonth(next.getUTCMonth() + direction);
+      if (view === "year") next.setUTCFullYear(next.getUTCFullYear() + direction);
 
       return next;
     });
   }
 
   function openMonth(monthIndex) {
-    setCursorDate(new Date(cursorDate.getFullYear(), monthIndex, 1));
+    setCursorDate(calendarDate(cursorDate.getUTCFullYear(), monthIndex, 1));
     setView("month");
     setSelectedEvent(null);
   }
@@ -242,8 +248,9 @@ export default function PublicCalendar() {
         <span className="eyebrow">PUBLIC SCHEDULE</span>
         <h1>Company events in one clear calendar.</h1>
         <p>
-          Browse schedules by day, month, or year. Select an event to see its
-          complete details.
+          Browse schedules by day, month, or year. All dates and times use
+          Philippine Time (PHT, UTC+8). Select an event to see its complete
+          details.
         </p>
       </section>
 
@@ -292,7 +299,7 @@ export default function PublicCalendar() {
               type="button"
               className="calendar-today"
               onClick={() => {
-                setCursorDate(new Date());
+                setCursorDate(philippineToday());
                 setSelectedEvent(null);
               }}
             >
@@ -314,7 +321,7 @@ export default function PublicCalendar() {
               ? formatDay(cursorDate)
               : view === "month"
                 ? formatMonth(cursorDate)
-                : cursorDate.getFullYear()}
+                : cursorDate.getUTCFullYear()}
           </h2>
         </div>
 
@@ -353,12 +360,12 @@ export default function PublicCalendar() {
             <div className="month-grid">
               {calendarDays.map((day) => {
                 const dayEvents = eventsForDay(day);
-                const outside = day.getMonth() !== cursorDate.getMonth();
-                const today = sameDay(day, new Date());
+                const outside = day.getUTCMonth() !== cursorDate.getUTCMonth();
+                const today = sameDay(day, philippineToday());
 
                 return (
                   <div
-                    key={day.toISOString()}
+                    key={calendarDateKey(day)}
                     className={[
                       "month-cell",
                       outside ? "outside-month" : "",
@@ -375,7 +382,7 @@ export default function PublicCalendar() {
                         setView("day");
                       }}
                     >
-                      {day.getDate()}
+                      {day.getUTCDate()}
                     </button>
 
                     <div className="month-event-list">
@@ -438,8 +445,8 @@ export default function PublicCalendar() {
                     onClick={() => setSelectedEvent(event)}
                   >
                     <div className="day-event-time">
-                      <strong>{start ? formatTime(start) : "Time TBD"}</strong>
-                      {end && <span>{formatTime(end)}</span>}
+                      <strong>{start ? formatPhilippineTime(start) : "Time TBD"}</strong>
+                      {end && <span>{formatPhilippineTime(end)}</span>}
                     </div>
 
                     <div
@@ -472,8 +479,8 @@ export default function PublicCalendar() {
         ) : (
           <div className="year-calendar">
             {Array.from({ length: 12 }, (_, monthIndex) => {
-              const monthDate = new Date(
-                cursorDate.getFullYear(),
+              const monthDate = calendarDate(
+                cursorDate.getUTCFullYear(),
                 monthIndex,
                 1
               );
@@ -488,9 +495,7 @@ export default function PublicCalendar() {
                 >
                   <div className="year-month-header">
                     <strong>
-                      {new Intl.DateTimeFormat("en-US", {
-                        month: "long",
-                      }).format(monthDate)}
+                      {formatCalendarDate(monthDate, { month: "long" })}
                     </strong>
                     <span>{monthEvents.length} event(s)</span>
                   </div>

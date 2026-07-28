@@ -3,9 +3,10 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import api from "../api";
 import { useAuth } from "../context/AuthContext";
-
-const MANILA_TIME_ZONE = "Asia/Manila";
-const MANILA_UTC_OFFSET = "+08:00";
+import {
+    philippineInputToUtc,
+    toPhilippineDateTimeInput,
+} from "../utils/philippineTime";
 
 const initial = {
     title: "",
@@ -21,69 +22,6 @@ const initial = {
     isPublic: true,
     reminderMinutes: 30,
 };
-
-/**
- * Converts a UTC/ISO timestamp returned by the API into the exact
- * Asia/Manila value required by <input type="datetime-local">.
- *
- * Example:
- * 2026-07-27T12:40:00.000Z
- * becomes:
- * 2026-07-27T20:40
- */
-function utcToManilaInput(value) {
-    if (!value) return "";
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-        return "";
-    }
-
-    const parts = new Intl.DateTimeFormat("en-CA", {
-        timeZone: MANILA_TIME_ZONE,
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        hourCycle: "h23",
-    }).formatToParts(date);
-
-    const values = Object.fromEntries(
-        parts
-            .filter((part) => part.type !== "literal")
-            .map((part) => [part.type, part.value])
-    );
-
-    return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
-}
-
-/**
- * Treats a datetime-local value as Philippine time and converts it
- * into a UTC ISO timestamp before sending it to the server.
- *
- * Example:
- * 2026-07-27T20:40
- * becomes:
- * 2026-07-27T12:40:00.000Z
- */
-function manilaInputToUtc(value) {
-    if (!value) return "";
-
-    const normalizedValue =
-        value.length === 16 ? `${value}:00` : value;
-
-    const date = new Date(
-        `${normalizedValue}${MANILA_UTC_OFFSET}`
-    );
-
-    if (Number.isNaN(date.getTime())) {
-        throw new Error("Invalid Philippine date and time.");
-    }
-
-    return date.toISOString();
-}
 
 export default function EventEditor() {
     const { id } = useParams();
@@ -121,8 +59,8 @@ export default function EventEditor() {
                         ? event.attendees.join(",")
                         : "",
 
-                    startAt: utcToManilaInput(event.startAt),
-                    endAt: utcToManilaInput(event.endAt),
+                    startAt: toPhilippineDateTimeInput(event.startAt),
+                    endAt: toPhilippineDateTimeInput(event.endAt),
 
                     reminderMinutes: Number(
                         event.reminderMinutes ?? 30
@@ -165,8 +103,8 @@ export default function EventEditor() {
         setError("");
 
         try {
-            const startAt = manilaInputToUtc(form.startAt);
-            const endAt = manilaInputToUtc(form.endAt);
+            const startAt = philippineInputToUtc(form.startAt);
+            const endAt = philippineInputToUtc(form.endAt);
 
             if (!startAt || !endAt) {
                 throw new Error(
@@ -328,7 +266,7 @@ export default function EventEditor() {
                     </label>
 
                     <label>
-                        Start
+                        Start (Philippine time)
 
                         <input
                             type="datetime-local"
@@ -345,7 +283,7 @@ export default function EventEditor() {
                     </label>
 
                     <label>
-                        End
+                        End (Philippine time)
 
                         <input
                             type="datetime-local"
@@ -566,7 +504,3 @@ export default function EventEditor() {
         </>
     );
 }
-
-<p style={{ color: "#0a7a5c", fontWeight: 700 }}>
-    Manila timezone build 2026-07-27
-</p>
